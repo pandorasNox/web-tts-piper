@@ -1,0 +1,15 @@
+
+services:
+  cli:
+    build:
+      dockerfile: container-images/Containerfile
+      context: .
+    entrypoint: ash
+    command:
+      - "-c"
+      - "sleep $((60 * 60 * 24))"
+    ports:
+      - "3000:3000"
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
