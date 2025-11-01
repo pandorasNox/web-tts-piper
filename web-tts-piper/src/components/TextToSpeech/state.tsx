@@ -1,9 +1,10 @@
+import { RefObject } from "react";
 
 type TTSState = {
-  ttsStrategy: TTSStrategy,
-  inputText: string,
   playerState: PlayerState,
+  inputText: string,
   textToBeSpoken: TextToBeSpoken,
+  ttsStrategy: TTSStrategy,
   strategies: {
     client: {
       isSupported: boolean,
@@ -36,6 +37,8 @@ type TextToBeSpoken = {
   paragraphsSegments: Intl.Segments[],
   paragraphs: Paragraphs,
   readingPosition: {paragraphIndex: number, sentenceIndex: number},
+  ttsArticleContentRef: RefObject<HTMLElement | null>,
+  sentenceRefs: RefObject<Map<string, HTMLSpanElement> | null>,
 }
 
 type Paragraphs = Sentences[]

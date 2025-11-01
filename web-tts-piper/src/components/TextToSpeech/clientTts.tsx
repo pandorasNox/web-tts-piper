@@ -1,15 +1,14 @@
 
 import { type TTSStoreAction } from "./reducer"
-import { playerStates, type PlayerState, type TextToBeSpoken, type TTSState } from "./state"
+import { type PlayerState, type TextToBeSpoken, type TTSState } from "./state"
 
 function initClientTts(
-  ttsStore: TTSState, ttsDispatch: (action: TTSStoreAction) => void, speechSynthesis: SpeechSynthesis
+  ttsStore: TTSState, ttsDispatch: (action: TTSStoreAction) => void,
+  speechSynthesis: SpeechSynthesis
 ) {
   const voices = speechSynthesis.getVoices()
 
-  if (voices.length === 0) {
-    return
-  }
+  if (voices.length === 0) return
 
   ttsDispatch({ type: 'update_client_tts_voices', voices})
 
@@ -53,6 +52,7 @@ function buildUtterance(
   utterance.text = textToBeSpeak;
   utterance.voice = voice
   utterance.volume = volume
+  utterance.rate = 0.85
 
   utterance.onstart = () => console.debug("utterance.onstart")
   utterance.onerror = (e) => console.debug("utterance.onerror", e)

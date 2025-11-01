@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useReducer, useEffect, createContext, useContext, useRef, } from 'react'
+import { useState, useReducer, useEffect, createContext, useContext, useRef, RefObject, createRef, } from 'react'
 
 import type { TTSState, TTSStrategy, PlayerState, TextToBeSpoken, } from './state'
 import { playerStates, ttsStrategies,  } from './state'
@@ -9,6 +9,7 @@ import { ttsStoreReducer, setPlayerStateByDispatch, } from './reducer'
 
 import classnames from '../../util/classnames'
 import placeholderText from '../../util/placeholderText'
+import { nextReadingPosition, previousReadingPosition } from '@/util/readingPosition'
 import { buildUtterance, clientTTSSpeak, initClientTts } from './clientTts'
 import usePrevious from '@/hooks/usePrevious'
 
@@ -20,6 +21,8 @@ const initalTTSState: TTSState = {
     paragraphsSegments: [],
     paragraphs: [],
     readingPosition: {paragraphIndex: 0 , sentenceIndex: 0},
+    ttsArticleContentRef: createRef(),
+    sentenceRefs: createRef(),
   },
   strategies: {
     client: {
@@ -46,23 +49,22 @@ export default function TextToSpeechController() {
 
   const setPlayerState = (newState: PlayerState) => {setPlayerStateByDispatch(newState, ttsDispatch)}
 
+  const ttsArticleContentRef = useRef(null)
+
   // Create a ref to hold the latest playerState
   const playerStateRef = useRef(ttsStore.playerState);
   // Sync the ref with the current state whenever it changes
-  useEffect(() => {
-    playerStateRef.current = ttsStore.playerState;
-  }, [ttsStore.playerState]);
+  useEffect(() => { playerStateRef.current = ttsStore.playerState; }, [ttsStore.playerState]);
 
   // hooks run after render
   useEffect(() => {
-    if (window.speechSynthesis === undefined ) {
-      return;
-    }
+    if (window.speechSynthesis === undefined ) return;
 
     ttsDispatch({ type: 'update_client_is_supported', isSupported: true});
 
     initClientTts(ttsStore, ttsDispatch, window.speechSynthesis)
     // no return cleanup function needed here
+    return function cleanup() {}
   }, []); // with '[]' (empty array) => will only run after the initial render
 
   // hooks run after render
@@ -89,11 +91,12 @@ export default function TextToSpeechController() {
     const synth = window.speechSynthesis;
     const textToBeSpeak = ttsStore.textToBeSpoken.paragraphs[ttsStore.textToBeSpoken.readingPosition.paragraphIndex][ttsStore.textToBeSpoken.readingPosition.sentenceIndex]
     const onend = (event: SpeechSynthesisEvent) => {
-      console.debug( `  >> ${event.name} reached after ${event.elapsedTime} seconds. ttsStore.playerState:`, ttsStore.playerState,);
+      console.debug( `  >> ${event.name} reached after ${event.elapsedTime} seconds. ttsStore.playerState:`, ttsStore.playerState, event);
       const timeoutId = setTimeout(() => {
         console.debug("** run setTimeout:", "ttsStore.playerState=", ttsStore.playerState, "playerStateRef.current=", playerStateRef.current);
-        clearTimeout(timeoutId); playerStateRef.current === playerStates.IsPlaying && nextReadingPosition()
-      }, 100)
+        clearTimeout(timeoutId);
+        playerStateRef.current === playerStates.IsPlaying && triggerNextReadingPosition()
+      }, 10)
     }
     const utterance = buildUtterance(textToBeSpeak, ttsStore.strategies.client.pickedVoice, ttsStore.strategies.client.volume, onend,)
     utterance.onend = onend
@@ -130,7 +133,7 @@ export default function TextToSpeechController() {
     const currentParagraphSentences = ttsStore.textToBeSpoken.paragraphs[ttsStore.textToBeSpoken.readingPosition.paragraphIndex]
     if (currentParagraphSentences.length === 0) {
       console.debug("  -- return after:", "if (currentParagraphSentences.length === 0)");
-      nextReadingPosition();
+      triggerNextReadingPosition();
       return
     }
 
@@ -187,72 +190,52 @@ export default function TextToSpeechController() {
   }
 
   // function nextReadingPosition(paragraphs: any[][], currentPosition: Position): Position | null {
-  function nextReadingPosition() {
-    const { paragraphIndex, sentenceIndex } = ttsStore.textToBeSpoken.readingPosition;
+  function triggerNextReadingPosition() {
     const paragraphs = ttsStore.textToBeSpoken.paragraphs
+    const readingPosition = ttsStore.textToBeSpoken.readingPosition;
 
-    // Ensure the outer array exists at the current position
-    if (paragraphIndex >= paragraphs.length) {
-      return; // No further position available
-    }
+    const res = nextReadingPosition(paragraphs, readingPosition)
 
-    const currentParagraph = paragraphs[paragraphIndex];
-
-    if (sentenceIndex >= currentParagraph.length - 1) {
-      // Move to the next paragraph
-      const maybeNextParagraphIndex = paragraphIndex + 1;
-      if (maybeNextParagraphIndex >= paragraphs.length) {
-        return; // No further position available
+    if (!res.ok) {
+      switch (res.error.errorType) {
+        case "InvalidIndex":
+          return
+        case "StartOfContent":
+          return
+        case "EndOfContent":
+          ttsDispatch({type: "stop_tts"})
+          return
       }
-
-      ttsDispatch({type: 'update_reading_position', readingPosition: {paragraphIndex: maybeNextParagraphIndex, sentenceIndex: 0}})
-      return;
     }
 
     // Otherwise, move to the next sentence
-    // return { paragraphIndex, sentenceIndex: sentanceIndex + 1 };
-    ttsDispatch({type: 'update_reading_position', readingPosition: {paragraphIndex: paragraphIndex, sentenceIndex: sentenceIndex + 1}})
+    ttsDispatch({type: 'update_reading_position', readingPosition: res.value})
   }
 
-  function previousReadingPosition() {
-    const { paragraphIndex, sentenceIndex } = ttsStore.textToBeSpoken.readingPosition;
-    const paragraphs = ttsStore.textToBeSpoken.paragraphs;
+  function triggerPreviousReadingPosition() {
+    const paragraphs = ttsStore.textToBeSpoken.paragraphs
+    const readingPosition = ttsStore.textToBeSpoken.readingPosition;
 
-    // Ensure the outer array exists at the current position
-    if (paragraphIndex < 0 || paragraphIndex >= paragraphs.length) {
-      return; // No previous position available
-    }
+    const res = previousReadingPosition(paragraphs, readingPosition)
 
-    // If we're at the beginning of a paragraph, move to the last sentence of the previous paragraph
-    if (sentenceIndex <= 0) {
-      const maybePreviousParagraphIndex = paragraphIndex - 1;
-      if (maybePreviousParagraphIndex < 0) {
-        return; // No previous position available
+    if (!res.ok) {
+      switch (res.error.errorType) {
+        case "InvalidIndex":
+          return
+        case "StartOfContent":
+          return
+        case "EndOfContent":
+          ttsDispatch({type: "stop_tts"})
+          return
       }
-
-      const previousParagraph = paragraphs[maybePreviousParagraphIndex];
-      ttsDispatch({
-        type: 'update_reading_position',
-        readingPosition: {
-          paragraphIndex: maybePreviousParagraphIndex,
-          sentenceIndex: previousParagraph.length === 0 ? 0 : previousParagraph.length - 1,
-        },
-      });
-      return;
     }
 
-    // Otherwise, move to the previous sentence within the current paragraph
-    ttsDispatch({
-      type: 'update_reading_position',
-      readingPosition: {
-        paragraphIndex: paragraphIndex,
-        sentenceIndex: sentenceIndex - 1,
-      },
-    });
+    // Otherwise, move to the next sentence
+    ttsDispatch({type: 'update_reading_position', readingPosition: res.value})
   }
 
   const changeClientVoice = (voiceName: string) => {
-    let cv = ttsStore.strategies.client.voices.find((v) => v.name === voiceName)
+    const cv = ttsStore.strategies.client.voices.find((v) => v.name === voiceName)
 
     if (cv === undefined) {
       return
@@ -277,16 +260,18 @@ export default function TextToSpeechController() {
         ttsStrategy={ttsStore.ttsStrategy}
         dispatchStrategyChange={(ttss: TTSStrategy) => {ttsDispatch({type: 'change_strategy', strategy: ttss})}}
         inputText={ttsStore.inputText}
+        ttsArticleContentRef={ttsArticleContentRef}
         updateInputText={(input: string) => {ttsDispatch({type: 'update_inputText', inputText: input})}}
         textToBeSpoken={ttsStore.textToBeSpoken}
         updateTextSnippets={processInputTextForTTS}
         updateReadingPosition={updateReadingPosition}
-        nextReadingPosition={nextReadingPosition}
-        previousReadingPosition={previousReadingPosition}
+        nextReadingPosition={triggerNextReadingPosition}
+        previousReadingPosition={triggerPreviousReadingPosition}
         playerState={ttsStore.playerState}
         setPlayerState={setPlayerState}
         changeClientVoice={changeClientVoice}
       />
+      {/* <Counter /> */}
     </ClientTTSContext>
   );
 }
@@ -297,6 +282,7 @@ function TextToSpeech({
   ttsStrategy,
   dispatchStrategyChange,
   inputText,
+  ttsArticleContentRef,
   updateInputText,
   textToBeSpoken,
   updateTextSnippets,
@@ -310,6 +296,7 @@ function TextToSpeech({
   ttsStrategy: TTSStrategy,
   dispatchStrategyChange: (ttss: TTSStrategy) => void,
   inputText: string,
+  ttsArticleContentRef: RefObject<null>,
   updateInputText: (inputText: string) => void,
   textToBeSpoken: TextToBeSpoken,
   updateTextSnippets: () => void,
@@ -375,12 +362,14 @@ function TextToSpeech({
         >
           <h3 className="mb-2">output:</h3>
           <article
+            ref={ttsArticleContentRef}
             className="
               p-2
               border
               border-gray-400
               border-double
               rounded-sm
+              h-[70dvh] overflow-y-scroll
             "
           >
             {textToBeSpoken.paragraphs.map((ps,pi) => (
@@ -391,7 +380,13 @@ function TextToSpeech({
                 )}
               >
                 {ps.map( (s,si) => (
-                  <span key={si} className={classnames("inline-block hover:bg-teal-700", {"bg-teal-700": textToBeSpoken.readingPosition.paragraphIndex === pi && textToBeSpoken.readingPosition.sentenceIndex === si})}>{s}</span>
+                  <span
+                    key={si}
+                    className={classnames("inline-block hover:bg-teal-700", {"bg-teal-700": textToBeSpoken.readingPosition.paragraphIndex === pi && textToBeSpoken.readingPosition.sentenceIndex === si})}
+                  >
+                    <span onClick={() => updateReadingPosition(pi,si)}> ▶ </span>
+                    {s}
+                  </span>
                 ) )}
                 <br />
               </p>
@@ -446,8 +441,8 @@ function Controls({
             {
               "bg-gray-500":        playerState !== playerStates.IsPlaying,
               "hover:bg-gray-400":  playerState !== playerStates.IsPlaying,
-              "bg-red-700":         playerState === playerStates.IsPlaying,
-              "hover:bg-red-600":   playerState === playerStates.IsPlaying,
+              "bg-green-700":         playerState === playerStates.IsPlaying,
+              "hover:bg-green-600":   playerState === playerStates.IsPlaying,
             },
           )}
           onClick={ () => {setPlayerState(playerStates.IsPlaying)} }
@@ -458,7 +453,16 @@ function Controls({
           {/* <span>Play</span> */}
         </button>
 
-        <button className="p-2 bg-gray-500 rounded-full hover:bg-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-700"
+        <button
+          className={classnames(
+            "p-2 rounded-full focus:outline-none focus:ring-4 focus:ring-blue-700",
+            {
+              "bg-gray-500":        playerState !== playerStates.IsPaused,
+              "hover:bg-gray-400":  playerState !== playerStates.IsPaused,
+              "bg-orange-600":         playerState === playerStates.IsPaused,
+              "hover:bg-orange-500":   playerState === playerStates.IsPaused,
+            },
+          )}
           onClick={ () => {setPlayerState(playerStates.IsPaused)} }
         >
           <svg className="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">

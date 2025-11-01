@@ -141,9 +141,6 @@ function ttsStoreReducer(state: TTSState, action: TTSStoreAction): TTSState {
         },
       }
     }
-    // default: {
-    //   throw Error('Unknown action: ' + action.type);
-    // }
   }
 }
 
