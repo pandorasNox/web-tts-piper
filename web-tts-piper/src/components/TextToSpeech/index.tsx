@@ -27,6 +27,7 @@ const initalTTSState: TTSState = {
   strategies: {
     client: {
       isSupported: false,
+      isCanceling: false,
       voices: [],
       prepickVoiceIfExits: "Daniel",
       pickedVoice: null,

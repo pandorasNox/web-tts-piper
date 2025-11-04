@@ -7,6 +7,8 @@ import placeholderText from '../../util/placeholderText'
 
 import { nextReadingPosition, previousReadingPosition } from '@/util/readingPosition';
 import { createRef, RefObject } from 'react';
+import { Result, toResult } from '@/util/resultType';
+import { waitFor } from '@/util/waitFor';
 
 // inital state
 const initalTTSState: TTSState = {
@@ -23,6 +25,7 @@ const initalTTSState: TTSState = {
   strategies: {
     client: {
       isSupported: false,
+      isCanceling: false,
       voices: [],
       prepickVoiceIfExits: "Daniel",
       pickedVoice: null,
@@ -148,42 +151,16 @@ const store = createStore({
       ttsStrategy: event.strategy,
     }),
     startTts: (context, _event, enqueue) => {
-      switch (context.playerState) {
-        case playerStates.IsPlaying:
-          return context;
-        case playerStates.IsPaused:
-        case playerStates.IsStopped:
-          enqueue.effect(async () => {
-            // TODO: https://web.dev/articles/media-session
-            navigator.mediaSession.metadata = new MediaMetadata({
-              title: 'ttsRead',
-              artist: 'ttsPlayerVoice',
-            });
-            navigator.mediaSession.setActionHandler('play', () => { store.trigger.startTts() } );
-            navigator.mediaSession.setActionHandler('pause', () => { store.trigger.pauseTts() } );
-            navigator.mediaSession.setActionHandler('nexttrack', () => { store.trigger.moveReadingPositionForward() } );
-            navigator.mediaSession.setActionHandler('previoustrack', () => { store.trigger.moveReadingPositionBackward() } );
+      const nextContext = {...context};
 
-            // try to gain media session focus
-            const mockAudio = new Audio();
-            const sound= 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
-            mockAudio.src = sound;
-            mockAudio.volume = 0; // ensure silence
-            mockAudio.load();
-            mockAudio.play().then(() => {
-              mockAudio.pause();
-            }).catch(err => {
-              console.error('Silent playback failed:', err);
-            });
+      enqueue.effect(async () => {
+        store.send( { "type": "speak" } );
+        activateMediaCurator();
+      });
 
-            store.send( { "type": "speak" } );
-          });
-
-          return {
-            ...context,
-            playerState: playerStates.IsPlaying,
-          };
-      }
+      nextContext.playerState = playerStates.IsPlaying;
+      nextContext.strategies.client.isCanceling = false;
+      return nextContext;
     },
     speak: (context, _event, enqueue) => {
       console.log("store.on.speak");
@@ -194,19 +171,22 @@ const store = createStore({
       }
 
       if (typeof window === "undefined") return context;
-      window.speechSynthesis.cancel();
 
       const paragraphs = context.textToBeSpoken.paragraphs;
       const readingPosition = context.textToBeSpoken.readingPosition;
 
       if (typeof paragraphs[readingPosition.paragraphIndex] === 'undefined') {
         enqueue.effect(async () => {
+          window.speechSynthesis.cancel();
+          await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
           store.send( { "type": "stopTts" } );
         });
         return context;
       }
       if (typeof paragraphs[readingPosition.paragraphIndex][readingPosition.sentenceIndex] === 'undefined') {
         enqueue.effect(async () => {
+          window.speechSynthesis.cancel();
+          await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
           store.send( { "type": "stopTts" } );
         });
         return context;
@@ -242,30 +222,6 @@ const store = createStore({
 
       const ttsArticleContentRef = context.textToBeSpoken.ttsArticleContentRef;
       const sentenceRefs = context.textToBeSpoken.sentenceRefs;
-      console.log("speak", "sentenceRefs.current:", sentenceRefs.current);
-
-      // const scrollToSentence = (key: string) => {
-      //   console.log("scrollToSentence", "key:", key);
-      //   const container = ttsArticleContentRef.current;
-      //   const sentence = sentenceRefs.current?.get(key);
-      //   console.log("scrollToSentence", "container:", container);
-      //   console.log("scrollToSentence", "sentenceRefs.current:", sentenceRefs.current);
-      //   console.log("scrollToSentence", "sentence:", sentence);
-
-      //   if (!container || !sentence) return;
-      //   console.log("scrollToSentence", "got container & sentence");
-
-      //   const offsetTop = sentence.offsetTop;
-      //   const containerHeight = container.clientHeight;
-      //   const sentenceHeight = sentence.offsetHeight;
-
-      //   const scrollTo = offsetTop - (containerHeight / 2) + (sentenceHeight / 2);
-
-      //   container.scrollTo({
-      //     top: scrollTo,
-      //     behavior: 'smooth'
-      //   });
-      // };
 
       const scrollToSentence = (key: string) => {
         const container = ttsArticleContentRef.current;
@@ -288,33 +244,49 @@ const store = createStore({
       };
 
       enqueue.effect(async () => {
-        scrollToSentence(`p${readingPosition.paragraphIndex}s${readingPosition.sentenceIndex}`)
-        await speak(textToBeSpoken);
-        store.send( { "type": "guardFromSpeakMoveReadingPositionForward", isSpeaking: false } );
+        window.speechSynthesis.cancel();
+        await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
+
+        scrollToSentence(`p${readingPosition.paragraphIndex}s${readingPosition.sentenceIndex}`);
+
+        const _speakRes = await toResult(speak(textToBeSpoken));
+
+        if (!store.getSnapshot().context.strategies.client.isCanceling) {
+          store.send( { "type": "guardFromSpeakMoveReadingPositionForward" } );
+        }
       });
 
-      return context;
+      const nextContext = {...context};
+      nextContext.strategies.client.isCanceling = false;
+      return nextContext;
     },
     pauseTts: (context, _event, enqueue) => {
       if (typeof window === "undefined") return context;
 
       enqueue.effect(async () => {
         window.speechSynthesis.cancel();
+        await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
       });
 
-      return {...context, playerState: playerStates.IsPaused};
+      const nextContext = {...context};
+      nextContext.playerState = playerStates.IsPaused;
+      nextContext.strategies.client.isCanceling = true;
+
+      return nextContext;
     },
     stopTts: (context, _event, enqueue) => {
       if (typeof window === "undefined") return context;
 
       enqueue.effect(async () => {
         window.speechSynthesis.cancel();
+        await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
         store.trigger.speechEnded();
       });
 
-      let nextContext = {...context};
-      context.playerState = playerStates.IsStopped;
-      context.textToBeSpoken.readingPosition = {paragraphIndex: 0, sentenceIndex: 0};
+      const nextContext = {...context};
+      nextContext.playerState = playerStates.IsStopped;
+      nextContext.textToBeSpoken.readingPosition = {paragraphIndex: 0, sentenceIndex: 0};
+      nextContext.strategies.client.isCanceling = true;
 
       return nextContext;
     },
@@ -333,17 +305,22 @@ const store = createStore({
           if (res.ok) {
             enqueue.effect(async () => {
               window.speechSynthesis.cancel();
+              await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
               store.send( { "type": "startTts"} );
             });
 
             nextContext.playerState = playerStates.IsPaused;
             nextContext.textToBeSpoken.readingPosition = res.value;
+            nextContext.strategies.client.isCanceling = true;
             return nextContext;
           }
 
           return nextContext;
         case playerStates.IsPaused:
-          window.speechSynthesis.cancel();
+          enqueue.effect(async () => {
+            window.speechSynthesis.cancel();
+            await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
+          });
           if (res.ok) {
             nextContext.textToBeSpoken.readingPosition = res.value;
             return nextContext;
@@ -359,76 +336,78 @@ const store = createStore({
           return context;
       }
 
-      // enqueue.effect(async () => {
-      //   if (context.playerState === playerStates.IsPlaying) {
-      //     store.send( { "type": "startTts"} );
-      //   }
-
-      //   context.textToBeSpoken.ttsArticleContentRef.current?.scrollIntoView({ behavior: 'smooth' });
-      // });
-
       return context;
     },
-    guardFromSpeakMoveReadingPositionForward:(context, event: { isSpeaking: boolean}, enqueue) => {
-      const { isSpeaking } = event;
+    guardFromSpeakMoveReadingPositionForward:(context, _event, enqueue) => {
       if (context.playerState === playerStates.IsPlaying) {
         enqueue.effect(async () => {
             store.send( { "type": "moveReadingPositionForward" } );
         });
       }
 
-      return context;
+      let nextContext = {...context};
+      return nextContext;
     },
     moveReadingPositionForward: (context, _event, enqueue) => { // move forword while playing + move forward while stop/paused
       console.log("store.on.moveReadingPositionForward");
 
       if (typeof window === "undefined") return context;
 
-      const paragraphs = context.textToBeSpoken.paragraphs
+      const paragraphs = context.textToBeSpoken.paragraphs;
       const readingPosition = context.textToBeSpoken.readingPosition;
-
-      const res = nextReadingPosition(paragraphs, readingPosition)
-
-      // switch (context.playerState) {
-      //   case playerStates.IsPlaying:
-      //     break;
-      //   case playerStates.IsPaused:
-      //     break;
-      //   case playerStates.IsStopped:
-      //     break;
-      // }
-
-      if (!res.ok) {
-        switch (res.error.errorType) {
-          case "InvalidIndex":
-            return context;
-          case "StartOfContent":
-            return context;
-          case "EndOfContent":
-            enqueue.effect(async () => {
-              store.trigger.stopTts();
-            });
-            return {
-              ...context,
-              playerState: playerStates.IsStopped,
-            };
-        }
-      }
-
-      if (context.playerState === playerStates.IsPlaying) {
-        enqueue.effect(async () => {
-          window.speechSynthesis.cancel();
-          store.send( { "type": "speak"} );
-        });
-      }
+      const res = nextReadingPosition(paragraphs, readingPosition);
 
       let nextContext = {...context};
-      nextContext.textToBeSpoken.readingPosition = res.value;
-      return nextContext;
+
+      switch (context.playerState) {
+        case playerStates.IsPlaying:
+          if (res.ok) {
+            enqueue.effect(async () => {
+              window.speechSynthesis.cancel();
+              await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
+              store.send( { "type": "startTts"} );
+            });
+
+            nextContext.textToBeSpoken.readingPosition = res.value;
+            nextContext.strategies.client.isCanceling = true;
+            return nextContext;
+          }
+
+          switch (res.error.errorType) {
+            case "InvalidIndex":
+            case "StartOfContent":
+            case "EndOfContent":
+              enqueue.effect(async () => {
+                store.send( { "type": "stopTts"} );
+              });
+              return nextContext;
+          }
+
+          return nextContext;
+        case playerStates.IsPaused:
+          enqueue.effect(async () => {
+            window.speechSynthesis.cancel();
+            await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
+          });
+          if (res.ok) {
+            nextContext.textToBeSpoken.readingPosition = res.value;
+            return nextContext;
+          }
+
+          switch (res.error.errorType) {
+            case "InvalidIndex":
+            case "StartOfContent":
+            case "EndOfContent":
+              return context;
+          }
+        case playerStates.IsStopped:
+          return context;
+      }
+
+      return context;
     },
     updateReadingPosition: (context, event: { paragraphIndex: number, sentenceIndex: number}, enqueue) => {
       if (typeof window === "undefined") return context;
-      window.speechSynthesis.cancel();
 
       const { paragraphIndex, sentenceIndex } = event;
       if (
@@ -448,23 +427,36 @@ const store = createStore({
         return context
       }
 
-      enqueue.effect(async () => {
-        if (context.playerState === playerStates.IsPlaying) {
-          store.send( { "type": "startTts"} );
-        }
-      });
+      const nextContext = {...context};
 
-      let nextContext = {...context};
-      nextContext.textToBeSpoken.readingPosition = {
-        paragraphIndex: paragraphIndex, sentenceIndex: sentenceIndex
-      };
+      switch (context.playerState) {
+        case playerStates.IsPlaying:
+          enqueue.effect(async () => {
+            window.speechSynthesis.cancel();
+            await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
+            store.send( { "type": "startTts"} );
+          });
+
+          nextContext.textToBeSpoken.readingPosition = {
+            paragraphIndex: paragraphIndex, sentenceIndex: sentenceIndex
+          };
+          nextContext.strategies.client.isCanceling = true;
+
+          return nextContext
+        case playerStates.IsPaused:
+        case playerStates.IsStopped:
+          nextContext.textToBeSpoken.readingPosition = {
+            paragraphIndex: paragraphIndex, sentenceIndex: sentenceIndex
+          };
+          return nextContext
+      }
 
       return nextContext
     },
     updateInputText: (context, event: { inputText: string, process: boolean }, enqueue) => {
       return {...context, inputText: event.inputText};
     },
-    processInputText: (context) => {
+    processInputText: (context, _event, enqueue) => {
       const segmenterEn = new Intl.Segmenter('en' /* alt. e.g. 'en-US' */, {
         granularity: 'sentence'
       });
@@ -480,8 +472,14 @@ const store = createStore({
         return Array.from(p).map( (s) => { return s.segment})
       })
 
+      enqueue.effect(async () => {
+        window.speechSynthesis.cancel();
+        await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
+      });
+
       return {
         ...context,
+        playerState: playerStates.IsStopped,
         textToBeSpoken: {
           ...context.textToBeSpoken,
           paragraphsSegments: paragraphsSegments,
@@ -536,6 +534,30 @@ export function registerSentenceRef(key: string, el: HTMLSpanElement | null) {
     console.log("registerSentenceRef.updatedMap.set", updatedMap);
     store.send( { type: "putSentenceRefs", sentenceRefs: updatedMap, } );
   }
+}
+
+function activateMediaCurator() {
+  // try to gain media session focus
+  const mockAudio = new Audio();
+  const sound= 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+  mockAudio.src = sound;
+  mockAudio.volume = 0; // ensure silence
+  mockAudio.load();
+  mockAudio.play().then(() => {
+    // TODO: https://web.dev/articles/media-session
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: 'ttsRead',
+      artist: 'ttsPlayerVoice',
+    });
+    navigator.mediaSession.setActionHandler('play', () => { store.trigger.startTts() } );
+    navigator.mediaSession.setActionHandler('pause', () => { store.trigger.pauseTts() } );
+    navigator.mediaSession.setActionHandler('nexttrack', () => { store.trigger.moveReadingPositionForward() } );
+    navigator.mediaSession.setActionHandler('previoustrack', () => { store.trigger.moveReadingPositionBackward() } );
+
+    mockAudio.pause();
+  }).catch(err => {
+    console.error('Silent playback failed:', err);
+  });
 }
 
 export default store

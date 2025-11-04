@@ -8,6 +8,7 @@ type TTSState = {
   strategies: {
     client: {
       isSupported: boolean,
+      isCanceling: boolean,
       voices: SpeechSynthesisVoice[],
       prepickVoiceIfExits: string,
       pickedVoice: SpeechSynthesisVoice | null,
