@@ -132,7 +132,7 @@ export default function TTS2() {
                       ref={ (el) => { el ? sentenceRefs.current.set(key, el) : sentenceRefs.current.delete(key) } }
                       className={classnames("inline-block hover:bg-sky-800", {"bg-teal-700": readingPosition.paragraphIndex === pi && readingPosition.sentenceIndex === si})}
                     >
-                      <span onClick={ () => store.send( { "type": "updateReadingPosition", "paragraphIndex": pi, "sentenceIndex": si } ) }> ▶ </span>
+                      <span className="cursor-pointer" onClick={ () => store.send( { "type": "updateReadingPosition", "paragraphIndex": pi, "sentenceIndex": si } ) }> ▶ </span>
                       {sText}
                     </span>
                   );
