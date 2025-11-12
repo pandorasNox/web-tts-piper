@@ -38,8 +38,10 @@ type TextToBeSpoken = {
   paragraphsSegments: Intl.Segments[],
   paragraphs: Paragraphs,
   readingPosition: {paragraphIndex: number, sentenceIndex: number},
+  inputRef: RefObject<HTMLElement | null>,
   ttsArticleContentRef: RefObject<HTMLElement | null>,
   sentenceRefs: RefObject<Map<string, HTMLSpanElement> | null>,
+  autoScrollFocuseEnabled: boolean,
 }
 
 type Paragraphs = Sentences[]

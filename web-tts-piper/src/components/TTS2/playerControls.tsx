@@ -16,8 +16,8 @@ export default function Controls({} : {}) {
       <div className="controls p-4 grid grid-cols-9 items-center gap-2 bg-gray-700 rounded-2xl">
 
         <button
-          data-intention="backward button"
-          className="col-3 p-2 bg-gray-500 rounded-full hover:bg-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-700"
+          data-description="backward button"
+          className="col-3 p-2 bg-gray-500 rounded-full hover:bg-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-700 cursor-pointer"
           onClick={() => store.send({type: "moveReadingPositionBackward"})}
         >
           {/* backward  */}
@@ -27,10 +27,10 @@ export default function Controls({} : {}) {
         </button>
 
         <button
-          data-intention="play button"
+          data-description="play button"
           // className="p-2 bg-gray-500 rounded-full hover:bg-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-700"
           className={classnames(
-            "p-2 bg-gray-500 rounded-full hover:bg-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-700",
+            "p-2 bg-gray-500 rounded-full hover:bg-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-700 cursor-pointer",
             {
               "bg-gray-500":        playerState !== playerStates.IsPlaying,
               "hover:bg-gray-400":  playerState !== playerStates.IsPlaying,
@@ -47,9 +47,9 @@ export default function Controls({} : {}) {
         </button>
 
         <button
-          data-intention="pause button"
+          data-description="pause button"
           className={classnames(
-            "p-2 rounded-full focus:outline-none focus:ring-4 focus:ring-blue-700",
+            "p-2 rounded-full focus:outline-none focus:ring-4 focus:ring-blue-700 cursor-pointer",
             {
               "bg-gray-500":        playerState !== playerStates.IsPaused,
               "hover:bg-gray-400":  playerState !== playerStates.IsPaused,
@@ -65,8 +65,8 @@ export default function Controls({} : {}) {
         </button>
 
         <button
-          data-intention="stop button"
-          className="p-2 bg-gray-500 rounded-full hover:bg-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-700"
+          data-description="stop button"
+          className="p-2 bg-gray-500 rounded-full hover:bg-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-700 cursor-pointer"
           onClick={ () => { store.send({"type": "stopTts"}) } }
         >
           <svg className="w-6 h-6 text-gray-800 dark:text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
@@ -75,8 +75,8 @@ export default function Controls({} : {}) {
         </button>
 
         <button
-          data-intention="forward button"
-          className="p-2 bg-gray-500 rounded-full hover:bg-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-700"
+          data-description="forward button"
+          className="p-2 bg-gray-500 rounded-full hover:bg-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-700 cursor-pointer"
           onClick={() => store.send({type: "moveReadingPositionForward"})}
         >
           {/* forward */}

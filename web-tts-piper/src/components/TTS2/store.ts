@@ -18,8 +18,10 @@ const initalTTSState: TTSState = {
     paragraphsSegments: [],
     paragraphs: [],
     readingPosition: { paragraphIndex: 0 , sentenceIndex: 0 },
+    inputRef: createRef(),
     ttsArticleContentRef: createRef(),
     sentenceRefs: createRef(),
+    autoScrollFocuseEnabled: true,
   },
   ttsStrategy: ttsStrategies.Client,
   strategies: {
@@ -40,8 +42,8 @@ const initalTTSState: TTSState = {
 const store = createStore({
   context: initalTTSState,
   on: {
-    putSentenceRefs: (context, event: { sentenceRefs: Map<string, HTMLSpanElement> }, enqueue) => {
-      console.log("run store.on.putSentenceRefs");
+    putRefs: (context, event: { inputRef: RefObject<null>, sentenceRefs: Map<string, HTMLSpanElement> }, enqueue) => {
+      console.log("run store.on.putRefs");
 
       // ensure playerStates.IsStopped
       if (context.playerState !== playerStates.IsStopped) {
@@ -55,6 +57,7 @@ const store = createStore({
         ...context,
         textToBeSpoken: {
           ...context.textToBeSpoken,
+          inputRef: event.inputRef,
           sentenceRefs: sRef,
         },
       };
@@ -80,10 +83,22 @@ const store = createStore({
         (() => {
           if (typeof window !== 'undefined') {
             window.addEventListener('keydown', (event: KeyboardEvent) => {
-              const key = event.key.toLowerCase();
+              const inputRef = store.getSnapshot().context.textToBeSpoken.inputRef;
+
+              // const inputRefHasFocus = document.activeElement === inputRef.current
+              const inputRefHasFocus = ( inputRef.current
+                && inputRef.current.contains(document.activeElement)
+                && document.activeElement instanceof HTMLTextAreaElement
+              );
+              if (inputRefHasFocus) {
+                return
+              }
+
+              let key = event.key.toLowerCase();
               const playerState = store.select((state) => state.playerState).get();
+
               switch (key) {
-                case 'p':
+                case 'k':
                   if (playerState === playerStates.IsPlaying) {
                     store.send( { "type": "pauseTts"} );
                   }
@@ -91,13 +106,18 @@ const store = createStore({
                     store.send( { "type": "startTts"} );
                   }
                   break;
-                case 'b':
+                case 'arrowleft':
+                case 'arrowup':
                   store.send( { "type": "moveReadingPositionBackward"} );
                   break;
-                case 'n':
+                case 'arrowright':
+                case 'arrowdown':
                   store.send( { "type": "moveReadingPositionForward"} );
                   break;
+                case 'escape':
+                  break;
               }
+
             });
           }
         })();
@@ -146,11 +166,53 @@ const store = createStore({
 
       return nextContext;
     },
+    toggleAutoScrollFocuse: (context, _, enqueue) => {
+      const ttsArticleContentRef = context.textToBeSpoken.ttsArticleContentRef;
+      const sentenceRefs = context.textToBeSpoken.sentenceRefs;
+
+      const scrollToSentence = (key: string) => {
+        const container = ttsArticleContentRef.current;
+        const sentence = sentenceRefs.current?.get(key);
+        if (!container || !sentence) return;
+
+        const containerRect = container.getBoundingClientRect();
+        const sentenceRect = sentence.getBoundingClientRect();
+
+        const containerScrollTop = container.scrollTop;
+        const sentenceOffsetTop = sentenceRect.top - containerRect.top;
+
+        const scrollTo =
+          containerScrollTop +
+          sentenceOffsetTop -
+          container.clientHeight / 2 +
+          sentence.offsetHeight / 2;
+
+        container.scrollTo({ top: scrollTo, behavior: 'smooth' });
+      };
+
+      enqueue.effect(async () => {
+        const readingPosition = store.getSnapshot().context.textToBeSpoken.readingPosition;
+        const autoScrollFocuseEnabled = store.getSnapshot().context.textToBeSpoken.autoScrollFocuseEnabled;
+        autoScrollFocuseEnabled && scrollToSentence(`p${readingPosition.paragraphIndex}s${readingPosition.sentenceIndex}`);
+      });
+
+      return {
+        ...context,
+        textToBeSpoken: {
+          ...context.textToBeSpoken,
+          autoScrollFocuseEnabled: !context.textToBeSpoken.autoScrollFocuseEnabled,
+        },
+      }
+    },
     changeStrategy: (context, event: { strategy: TTSStrategy }) => ({
       ...context,
       ttsStrategy: event.strategy,
     }),
     startTts: (context, _event, enqueue) => {
+      if (context.playerState === playerStates.IsPlaying) {
+        return context;
+      }
+
       const nextContext = {...context};
 
       enqueue.effect(async () => {
@@ -178,7 +240,7 @@ const store = createStore({
       if (typeof paragraphs[readingPosition.paragraphIndex] === 'undefined') {
         enqueue.effect(async () => {
           window.speechSynthesis.cancel();
-          await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
+          await toResult( waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} ) );
           store.send( { "type": "stopTts" } );
         });
         return context;
@@ -186,7 +248,7 @@ const store = createStore({
       if (typeof paragraphs[readingPosition.paragraphIndex][readingPosition.sentenceIndex] === 'undefined') {
         enqueue.effect(async () => {
           window.speechSynthesis.cancel();
-          await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
+          await toResult( waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} ) );
           store.send( { "type": "stopTts" } );
         });
         return context;
@@ -245,14 +307,15 @@ const store = createStore({
 
       enqueue.effect(async () => {
         window.speechSynthesis.cancel();
-        await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
+        await toResult( waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} ) );
 
-        scrollToSentence(`p${readingPosition.paragraphIndex}s${readingPosition.sentenceIndex}`);
+        const autoScrollFocuseEnabled = store.getSnapshot().context.textToBeSpoken.autoScrollFocuseEnabled;
+        autoScrollFocuseEnabled && scrollToSentence(`p${readingPosition.paragraphIndex}s${readingPosition.sentenceIndex}`);
 
         const _speakRes = await toResult(speak(textToBeSpoken));
 
         if (!store.getSnapshot().context.strategies.client.isCanceling) {
-          store.send( { "type": "guardFromSpeakMoveReadingPositionForward" } );
+          store.send( { "type": "moveReadingPositionForward" } );
         }
       });
 
@@ -265,7 +328,7 @@ const store = createStore({
 
       enqueue.effect(async () => {
         window.speechSynthesis.cancel();
-        await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
+        await toResult( waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} ) );
       });
 
       const nextContext = {...context};
@@ -279,7 +342,7 @@ const store = createStore({
 
       enqueue.effect(async () => {
         window.speechSynthesis.cancel();
-        await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
+        await toResult( waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} ) );
         store.trigger.speechEnded();
       });
 
@@ -305,11 +368,10 @@ const store = createStore({
           if (res.ok) {
             enqueue.effect(async () => {
               window.speechSynthesis.cancel();
-              await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
-              store.send( { "type": "startTts"} );
+              await toResult( waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} ) );
+              store.send( { "type": "speak"} );
             });
 
-            nextContext.playerState = playerStates.IsPaused;
             nextContext.textToBeSpoken.readingPosition = res.value;
             nextContext.strategies.client.isCanceling = true;
             return nextContext;
@@ -319,7 +381,7 @@ const store = createStore({
         case playerStates.IsPaused:
           enqueue.effect(async () => {
             window.speechSynthesis.cancel();
-            await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
+            await toResult( waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} ) );
           });
           if (res.ok) {
             nextContext.textToBeSpoken.readingPosition = res.value;
@@ -338,16 +400,6 @@ const store = createStore({
 
       return context;
     },
-    guardFromSpeakMoveReadingPositionForward:(context, _event, enqueue) => {
-      if (context.playerState === playerStates.IsPlaying) {
-        enqueue.effect(async () => {
-            store.send( { "type": "moveReadingPositionForward" } );
-        });
-      }
-
-      let nextContext = {...context};
-      return nextContext;
-    },
     moveReadingPositionForward: (context, _event, enqueue) => { // move forword while playing + move forward while stop/paused
       console.log("store.on.moveReadingPositionForward");
 
@@ -364,8 +416,8 @@ const store = createStore({
           if (res.ok) {
             enqueue.effect(async () => {
               window.speechSynthesis.cancel();
-              await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
-              store.send( { "type": "startTts"} );
+              await toResult( waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} ) );
+              store.send( { "type": "speak"} );
             });
 
             nextContext.textToBeSpoken.readingPosition = res.value;
@@ -387,7 +439,7 @@ const store = createStore({
         case playerStates.IsPaused:
           enqueue.effect(async () => {
             window.speechSynthesis.cancel();
-            await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
+            await toResult( waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} ) );
           });
           if (res.ok) {
             nextContext.textToBeSpoken.readingPosition = res.value;
@@ -433,8 +485,8 @@ const store = createStore({
         case playerStates.IsPlaying:
           enqueue.effect(async () => {
             window.speechSynthesis.cancel();
-            await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
-            store.send( { "type": "startTts"} );
+            await toResult( waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} ) );
+            store.send( { "type": "speak"} );
           });
 
           nextContext.textToBeSpoken.readingPosition = {
@@ -474,7 +526,7 @@ const store = createStore({
 
       enqueue.effect(async () => {
         window.speechSynthesis.cancel();
-        await waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} );
+        await toResult( waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} ) );
       });
 
       return {
@@ -517,24 +569,6 @@ const store = createStore({
     },
   },
 });
-
-// Create a selector for the position
-const selectSentenceRefs = store.select((context) => context.textToBeSpoken.sentenceRefs);
-
-// ✅ Register a sentence ref
-export function registerSentenceRef(key: string, el: HTMLSpanElement | null) {
-  console.log("registerSentenceRef", "key:", key, "el:", el)
-  if (el) {
-    const currentMap = selectSentenceRefs.get().current;
-    let updatedMap = new Map<string, HTMLSpanElement>();
-    if (currentMap !== null) {
-      updatedMap = new Map(currentMap);
-    }
-    updatedMap.set(key, el);
-    console.log("registerSentenceRef.updatedMap.set", updatedMap);
-    store.send( { type: "putSentenceRefs", sentenceRefs: updatedMap, } );
-  }
-}
 
 function activateMediaCurator() {
   // try to gain media session focus

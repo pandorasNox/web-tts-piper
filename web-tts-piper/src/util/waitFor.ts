@@ -18,7 +18,7 @@ export function waitFor({
         resolve(true);
       } else if (Date.now() - startTime >= timeout) {
         clearInterval(timer);
-        reject(new Error('Timeout waiting for condition'));
+        reject(new Error('Timeout reached waiting for condition'));
       }
     }, interval);
   });
