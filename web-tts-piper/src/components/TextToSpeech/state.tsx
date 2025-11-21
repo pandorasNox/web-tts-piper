@@ -12,10 +12,9 @@ type TTSState = {
       voices: SpeechSynthesisVoice[],
       prepickVoiceIfExits: string,
       pickedVoice: SpeechSynthesisVoice | null,
-      volume: number,
-      // const [volume, setVolume] = useState(1); // 0 (lowest) and 1 (highest)
-      // const [rate, setRate] = useState(1); // 0.1 (lowest) and 10 (highest), with 1 being the default rate
-      // const [pitch, setPitch] = useState(1); // 0 (lowest) and 2 (highest)
+      volume: number, // 0 (lowest) and 1 (highest)
+      rate: number, // 0.1 (lowest) and 10 (highest), with 1 being the default rate
+      pitch: number, // 0 (lowest) and 2 (highest)
     },
     serverPiper: {},
   },
@@ -42,6 +41,8 @@ type TextToBeSpoken = {
   ttsArticleContentRef: RefObject<HTMLElement | null>,
   sentenceRefs: RefObject<Map<string, HTMLSpanElement> | null>,
   autoScrollFocuseEnabled: boolean,
+  endingPhrase: string,
+  addEndingPhrase: boolean
 }
 
 type Paragraphs = Sentences[]

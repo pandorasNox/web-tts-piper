@@ -5,6 +5,7 @@ import store from './store';
 import { createRef, useRef, useEffect, SVGProps, useState } from 'react';
 
 import PlayerControls from './playerControls'
+import SentenceProgress from './progress/sentences'
 import classnames from '@/util/classnames';
 import { useSelector } from '@xstate/store/react';
 import { Paragraphs } from '../TextToSpeech/state';
@@ -20,13 +21,31 @@ export default function TTS2() {
 
   const autoScrollFocuseEnabled = useSelector(store, (state) => state.context.textToBeSpoken.autoScrollFocuseEnabled);
   const toggleAutoScrollFocuse = () => {
-    store.send( { "type": "toggleAutoScrollFocuse" } )
+    store.send( { "type": "toggleAutoScrollFocuse" } );
   };
 
   const inputRef = useRef(null);
   const sentenceRefs = useRef(new Map<string, HTMLSpanElement>);
 
   // useEffect(() => {}, []); // effect runs once after initial render
+
+  // useEffect(() => {
+  //   const articleEl = ttsArticleContentRef.current;
+  //   if (!articleEl) return;
+
+  //   const handleScroll = (_event: Event) => {
+  //     if (!autoScrollFocuseEnabled) return;
+  //     store.send( { "type": "toggleAutoScrollFocuse" } );
+  //   };
+
+  //   // Attach listener
+  //   articleEl.addEventListener("scroll", handleScroll);
+
+  //   // Cleanup on unmount
+  //   return () => {
+  //     articleEl.removeEventListener("scroll", handleScroll);
+  //   };
+  // }, [paragraphs, autoScrollFocuseEnabled]); // effect runs after each render + if 'paragraphs' change
 
   useEffect(() => {
     store.trigger.putRefs( { inputRef: inputRef, sentenceRefs: sentenceRefs.current } );
@@ -59,7 +78,7 @@ export default function TTS2() {
 
   return (
     <div className="p-2">
-      <div className="h-16"></div>
+      <div className="h-10 md:h-16"></div>
       <nav
         // className="mb-2 p-2 flex justify-center"
         className={
@@ -78,13 +97,19 @@ export default function TTS2() {
           <h3 className="pb-2 flex items-center justify-between flex-row h-5">
             <label htmlFor="message"
               className="
+                w-18
+                text-center
                 text-gray-900 dark:text-white
                 border-t border-x border-double rounded-t-lg border-gray-400 px-2
               "
-            >input</label>
+            >input:</label>
           </h3>
           <textarea id="message" ref={inputRef} rows={4}
-          className="block p-2.5 w-full md:min-h-96 text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+          className="
+            block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500
+            h-[40dvh]
+            md:h-[68dvh]
+          "
           placeholder={inputText}
           onChange={ (e) => { store.send({ "type": "updateInputText", inputText: e.target.value, process: false }) } }
           ></textarea>
@@ -111,12 +136,14 @@ export default function TTS2() {
           className='flex flex-col md:col-span-14 w-full md:pr-1'
         >
           <h3 className="pb-2 flex items-center justify-between flex-row h-5">
-            <span className="border-t border-x border-double rounded-t-lg border-gray-400 px-2">output:</span>
-            <div className='w-full px-2'>
+            <span className="w-18 text-center border-t border-x border-double rounded-t-lg border-gray-400 px-2"
+            >output:</span>
+            <div className='w-[80%] px-2 inline-flex flex-row items-center justify-center'>
               {/* progress bar */}
-              <div className="bg-gray-200 rounded-full dark:bg-gray-700 scale-[0.85]">
+              <div className="w-[80%] h-4 bg-gray-200 rounded-full dark:bg-gray-700 mr-2 scale-y-80 origin-left origin-top">
                 <div className="bg-blue-600 text-xs font-medium text-blue-100 text-center p-0.5 leading-none rounded-full" style={{width: readingProgress + "%"}}> {readingProgress}%</div>
               </div>
+              <SentenceProgress />
             </div>
             <div
               data-description="switch for on/off auto scroll focus / manual scrolling"
@@ -148,7 +175,8 @@ export default function TTS2() {
               border-gray-400
               border-double
               rounded-sm
-              h-[65.5dvh]
+              h-[42dvh]
+              md:h-[68dvh]
               overflow-y-scroll
             "
           >
@@ -167,7 +195,13 @@ export default function TTS2() {
                       // ref={el => el ? sentenceRefs?.current?.set(item.id, el) : refs.current.delete(item.id)}>
                       // ref={ el => el ? sentenceRefs?.current?.set(key, el) : sentenceRefs?.current?.delete(key) }>
                       ref={ (el) => { el ? sentenceRefs.current.set(key, el) : sentenceRefs.current.delete(key) } }
-                      className={classnames("inline-block hover:bg-sky-800", {"bg-teal-700": readingPosition.paragraphIndex === pi && readingPosition.sentenceIndex === si})}
+                      className={classnames(
+                          "inline-block hover:rounded-sm hover:bg-sky-800",
+                          {
+                            "rounded-sm bg-teal-700": readingPosition.paragraphIndex === pi && readingPosition.sentenceIndex === si,
+                            "md:text-4xl": readingPosition.paragraphIndex === pi && readingPosition.sentenceIndex === si,
+                          }
+                      )}
                     >
                       <span className="cursor-pointer" onClick={ () => store.send( { "type": "updateReadingPosition", "paragraphIndex": pi, "sentenceIndex": si } ) }> ▶ </span>
                       <span>{sText}</span>

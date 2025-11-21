@@ -22,6 +22,8 @@ const initalTTSState: TTSState = {
     ttsArticleContentRef: createRef(),
     sentenceRefs: createRef(),
     autoScrollFocuseEnabled: true,
+    endingPhrase: "the end",
+    addEndingPhrase: true,
   },
   ttsStrategy: ttsStrategies.Client,
   strategies: {
@@ -32,7 +34,9 @@ const initalTTSState: TTSState = {
       prepickVoiceIfExits: "Daniel",
       pickedVoice: null,
       //     utterance: null as SpeechSynthesisUtterance | null, // TODO
-      volume: parseFloat(0.5.toPrecision(2)), // TODO
+      volume: parseFloat(1.0.toPrecision(2)), // TODO
+      rate: 0.85,
+      pitch: 1.0,
     },
     serverPiper: {},
   },
@@ -155,6 +159,7 @@ const store = createStore({
 
       let nextContext = {...context};
       nextContext.strategies.client.voices = voices;
+      // TODO: (new Intl.DisplayNames(['en'], { type: 'language', style: 'narrow', languageDisplay: 'standard' })).of('en-UK')
 
       let maybeFoundPrepickVoiceIndexIfExits = voices.findIndex((v) => {
         return v.name === context.strategies.client.prepickVoiceIfExits;
@@ -261,6 +266,8 @@ const store = createStore({
         return context;
       }
       const volume = context.strategies.client.volume;
+      const rate = context.strategies.client.rate;
+      const pitch = context.strategies.client.pitch;
 
       const speak = (text: string): Promise<void> => {
         return new Promise((resolve, reject) => {
@@ -268,7 +275,8 @@ const store = createStore({
           utterance.text = text;
           utterance.voice = voice;
           utterance.volume = volume;
-          utterance.rate = 0.85;
+          utterance.rate = rate;
+          utterance.pitch = pitch;
 
           utterance.onend = () => {
             resolve();
@@ -309,12 +317,13 @@ const store = createStore({
         window.speechSynthesis.cancel();
         await toResult( waitFor( {conditionFn: () => (!window.speechSynthesis.speaking), interval: 50, timeout: 500} ) );
 
-        const autoScrollFocuseEnabled = store.getSnapshot().context.textToBeSpoken.autoScrollFocuseEnabled;
+        const context = store.getSnapshot().context;
+        const autoScrollFocuseEnabled = context.textToBeSpoken.autoScrollFocuseEnabled;
         autoScrollFocuseEnabled && scrollToSentence(`p${readingPosition.paragraphIndex}s${readingPosition.sentenceIndex}`);
 
         const _speakRes = await toResult(speak(textToBeSpoken));
 
-        if (!store.getSnapshot().context.strategies.client.isCanceling) {
+        if (!context.strategies.client.isCanceling) {
           store.send( { "type": "moveReadingPositionForward" } );
         }
       });
@@ -509,6 +518,8 @@ const store = createStore({
       return {...context, inputText: event.inputText};
     },
     processInputText: (context, _event, enqueue) => {
+      if (context.inputText.length === 0) return context;
+
       const segmenterEn = new Intl.Segmenter('en' /* alt. e.g. 'en-US' */, {
         granularity: 'sentence'
       });
@@ -523,6 +534,10 @@ const store = createStore({
       const paragraphs = paragraphsSegments.map( (p) => {
         return Array.from(p).map( (s) => { return s.segment})
       })
+
+      if (paragraphs.length > 0 && context.textToBeSpoken.addEndingPhrase) {
+        paragraphs.push([context.textToBeSpoken.endingPhrase]);
+      }
 
       enqueue.effect(async () => {
         window.speechSynthesis.cancel();
@@ -552,15 +567,28 @@ const store = createStore({
 
       return nextContext;
     },
-    changeClientVolume: (context, event: { volume: number }) => {
-      const volume = event.volume;
+    changeClientUtteranceSettings: (context, event: { volume?: number, rate?: number, pitch?: number }) => {
+      const clientState = context.strategies.client;
+      const volume = clientState.volume;
+      const rate = clientState.rate;
+      const pitch = clientState.pitch;
 
-      if ( ! (0 <= volume && volume <= 1) ) {
-        return context;
-      }
+      const nextVolume = event.volume;
+      const nextRate = event.rate;
+      const nextPitch = event.pitch;
 
       let nextContext = {...context};
-      nextContext.strategies.client.volume = volume;
+
+      if ( nextVolume && (volume !== nextVolume) && (0 <= nextVolume && nextVolume <= 1) ) {
+        nextContext.strategies.client.volume = nextVolume;
+      }
+      if ( nextRate && (rate !== nextRate) && (0.1 <= nextRate && nextRate <= 10) ) {
+        nextContext.strategies.client.rate = nextRate;
+      }
+      if ( nextPitch && (pitch !== nextPitch) && (0 <= nextPitch && nextPitch <= 2) ) {
+        nextContext.strategies.client.pitch = nextPitch;
+      }
+
       return nextContext;
     },
     speechEnded: (context) => {

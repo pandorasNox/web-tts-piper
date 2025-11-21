@@ -1,3 +1,4 @@
+import { createRef } from "react";
 import { type TTSState,  type TTSStrategy, type Paragraphs, type PlayerState, playerStates, } from "./state";
 
 type TTSStoreAction = {
@@ -72,7 +73,13 @@ function ttsStoreReducer(state: TTSState, action: TTSStoreAction): TTSState {
         ...state,
         textToBeSpoken: {
           ...action.textToBeSpoken,
-          readingPosition: {paragraphIndex: 0 , sentenceIndex: 0},
+          readingPosition: { paragraphIndex: 0, sentenceIndex: 0 },
+          inputRef: createRef(),
+          ttsArticleContentRef: createRef(),
+          sentenceRefs: createRef(),
+          autoScrollFocuseEnabled: true,
+          endingPhrase: "the end",
+          addEndingPhrase: true,
         },
       }
     }

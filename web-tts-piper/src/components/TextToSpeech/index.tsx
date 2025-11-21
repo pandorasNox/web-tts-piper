@@ -21,8 +21,12 @@ const initalTTSState: TTSState = {
     paragraphsSegments: [],
     paragraphs: [],
     readingPosition: {paragraphIndex: 0 , sentenceIndex: 0},
+    inputRef: createRef(),
     ttsArticleContentRef: createRef(),
     sentenceRefs: createRef(),
+    addEndingPhrase: false,
+    endingPhrase: "",
+    autoScrollFocuseEnabled: false,
   },
   strategies: {
     client: {
@@ -32,6 +36,8 @@ const initalTTSState: TTSState = {
       prepickVoiceIfExits: "Daniel",
       pickedVoice: null,
       volume: parseFloat(0.5.toPrecision(2)), // TODO
+      rate: 1.0,
+      pitch: 1.0,
     },
     serverPiper: {},
   },

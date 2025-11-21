@@ -1,12 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import classnames from '@/util/classnames';
 import TTSStrategyContent from './ttsStrategyContent';
 
 
 export default function SettingsDrawer({} : {}) {
-  const [showSettingsState, setShowSettingsState] = useState(false)
+  const [showSettingsState, setShowSettingsState] = useState(false);
+
+  useEffect(() => {
+    const escListenerFunc = (event: KeyboardEvent) => {
+      const key = event.key;
+      if (key === 'Escape') {
+        setShowSettingsState(prev => !prev);;
+      }
+    };
+
+    window && window.addEventListener('keydown', escListenerFunc);
+
+    return () => { window && window.removeEventListener("keydown", escListenerFunc); };
+  }, []); // run on inital comp did mount
 
   return (
     <>
