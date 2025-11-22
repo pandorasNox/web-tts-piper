@@ -1,13 +1,13 @@
 import { createStore } from '@xstate/store';
 
-import { TTSState, TTSStrategy, PlayerState, TextToBeSpoken, } from '../TextToSpeech/state'
+import { TTSState, TTSStrategy, } from '../TextToSpeech/state'
 import { playerStates, ttsStrategies,  } from '../TextToSpeech/state'
 
 import placeholderText from '../../util/placeholderText'
 
 import { nextReadingPosition, previousReadingPosition } from '@/util/readingPosition';
 import { createRef, RefObject } from 'react';
-import { Result, toResult } from '@/util/resultType';
+import { toResult } from '@/util/resultType';
 import { waitFor } from '@/util/waitFor';
 
 // inital state
@@ -46,7 +46,7 @@ const initalTTSState: TTSState = {
 const store = createStore({
   context: initalTTSState,
   on: {
-    putRefs: (context, event: { inputRef: RefObject<null>, sentenceRefs: Map<string, HTMLSpanElement> }, enqueue) => {
+    putRefs: (context, event: { inputRef: RefObject<null>, sentenceRefs: Map<string, HTMLSpanElement> }) => {
       console.log("run store.on.putRefs");
 
       // ensure playerStates.IsStopped
@@ -98,7 +98,7 @@ const store = createStore({
                 return
               }
 
-              let key = event.key.toLowerCase();
+              const key = event.key.toLowerCase();
               const playerState = store.select((state) => state.playerState).get();
 
               switch (key) {
@@ -126,7 +126,22 @@ const store = createStore({
           }
         })();
 
-        store.send( { "type": "initSpeechSynthesis"} );
+        const getVoices = ():SpeechSynthesisVoice[] => {
+          if (typeof window === "undefined") return [];
+          if (window.speechSynthesis === undefined ) return [];
+
+          const voices = speechSynthesis.getVoices();
+
+          if (voices.length <= 0) {
+            speechSynthesis.onvoiceschanged = () => {
+              store.send( { "type": "initSpeechSynthesis", voices: speechSynthesis.getVoices() } );
+            };
+          }
+
+          return voices;
+        }
+
+        store.send( { "type": "initSpeechSynthesis", voices: getVoices()} );
       });
 
       return {
@@ -138,30 +153,15 @@ const store = createStore({
       };
 
     },
-    initSpeechSynthesis: (context, _event, enqueue) => {
+    initSpeechSynthesis: (context, event: { voices: SpeechSynthesisVoice[] }) => {
       console.log("run store.on.initSpeechSynthesis");
+      const { voices } = event;
 
-      // ensure playerStates.IsStopped
-      if (context.playerState !== playerStates.IsStopped) {
-        return context;
-      }
-
-      if (typeof window === "undefined") return context;
-      if (window.speechSynthesis === undefined ) return context;
-
-      const voices = speechSynthesis.getVoices();
-
-      if (voices.length <= 0) {
-        speechSynthesis.onvoiceschanged = () => {
-          store.send( { "type": "initSpeechSynthesis" } );
-        };
-      }
-
-      let nextContext = {...context};
+      const nextContext = {...context};
       nextContext.strategies.client.voices = voices;
       // TODO: (new Intl.DisplayNames(['en'], { type: 'language', style: 'narrow', languageDisplay: 'standard' })).of('en-UK')
 
-      let maybeFoundPrepickVoiceIndexIfExits = voices.findIndex((v) => {
+      const maybeFoundPrepickVoiceIndexIfExits = voices.findIndex((v) => {
         return v.name === context.strategies.client.prepickVoiceIfExits;
       })
 
@@ -198,7 +198,7 @@ const store = createStore({
       enqueue.effect(async () => {
         const readingPosition = store.getSnapshot().context.textToBeSpoken.readingPosition;
         const autoScrollFocuseEnabled = store.getSnapshot().context.textToBeSpoken.autoScrollFocuseEnabled;
-        autoScrollFocuseEnabled && scrollToSentence(`p${readingPosition.paragraphIndex}s${readingPosition.sentenceIndex}`);
+        if (autoScrollFocuseEnabled) { scrollToSentence(`p${readingPosition.paragraphIndex}s${readingPosition.sentenceIndex}`); }
       });
 
       return {
@@ -319,8 +319,9 @@ const store = createStore({
 
         const context = store.getSnapshot().context;
         const autoScrollFocuseEnabled = context.textToBeSpoken.autoScrollFocuseEnabled;
-        autoScrollFocuseEnabled && scrollToSentence(`p${readingPosition.paragraphIndex}s${readingPosition.sentenceIndex}`);
+        if (autoScrollFocuseEnabled) { scrollToSentence(`p${readingPosition.paragraphIndex}s${readingPosition.sentenceIndex}`); }
 
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const _speakRes = await toResult(speak(textToBeSpoken));
 
         if (!context.strategies.client.isCanceling) {
@@ -370,7 +371,7 @@ const store = createStore({
       const readingPosition = context.textToBeSpoken.readingPosition;
       const res = previousReadingPosition(paragraphs, readingPosition);
 
-      let nextContext = {...context};
+      const nextContext = {...context};
 
       switch (context.playerState) {
         case playerStates.IsPlaying:
@@ -418,7 +419,7 @@ const store = createStore({
       const readingPosition = context.textToBeSpoken.readingPosition;
       const res = nextReadingPosition(paragraphs, readingPosition);
 
-      let nextContext = {...context};
+      const nextContext = {...context};
 
       switch (context.playerState) {
         case playerStates.IsPlaying:
@@ -514,7 +515,7 @@ const store = createStore({
 
       return nextContext
     },
-    updateInputText: (context, event: { inputText: string, process: boolean }, enqueue) => {
+    updateInputText: (context, event: { inputText: string, process: boolean }) => {
       return {...context, inputText: event.inputText};
     },
     processInputText: (context, _event, enqueue) => {
@@ -562,7 +563,7 @@ const store = createStore({
         return context;
       }
 
-      let nextContext = {...context};
+      const nextContext = {...context};
       nextContext.strategies.client.pickedVoice = cv;
 
       return nextContext;
@@ -577,7 +578,7 @@ const store = createStore({
       const nextRate = event.rate;
       const nextPitch = event.pitch;
 
-      let nextContext = {...context};
+      const nextContext = {...context};
 
       if ( nextVolume && (volume !== nextVolume) && (0 <= nextVolume && nextVolume <= 1) ) {
         nextContext.strategies.client.volume = nextVolume;

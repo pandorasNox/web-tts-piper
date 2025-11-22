@@ -2,7 +2,8 @@
 
 import store from './store';
 
-import { createRef, useRef, useEffect, SVGProps, useState } from 'react';
+import * as React from "react"
+import { createRef, useRef, useEffect, SVGProps } from 'react';
 
 import PlayerControls from './playerControls'
 import SentenceProgress from './progress/sentences'
@@ -107,12 +108,26 @@ export default function TTS2() {
           <textarea id="message" ref={inputRef} rows={4}
           className="
             block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500
-            h-[40dvh]
-            md:h-[68dvh]
+            h-[34dvh]
+            md:h-[62dvh]
+            mb-[1dvh]
           "
           placeholder={inputText}
           onChange={ (e) => { store.send({ "type": "updateInputText", inputText: e.target.value, process: false }) } }
           ></textarea>
+          <div className='flex flex-row h-[5dvh] rounded-lg border border-gray-300 bg-gray-700 p-1'>
+            <div
+              className="
+                flex items-center ps-4
+              "
+            >
+                <input id="bordered-checkbox-1" type="checkbox" value="" name="bordered-checkbox"
+                  className="w-4 h-4"
+                />
+                <label htmlFor="bordered-checkbox-1" className="select-none w-full py-4 ms-2 text-xs/3">with ending phrase:</label>
+            </div>
+            <input type="text" id="ending_phrase_text" className="bg-gray-600 border rounded border-gray-500 focus:ring-brand focus:border-brand block w-full px-3 py-2.5 shadow-xs placeholder:text-body" placeholder="the end" required />
+          </div>
         </div>
 
         {/* process btn  */}
@@ -122,7 +137,7 @@ export default function TTS2() {
             className="text-white bg-gray-800 max-h-20 hover:bg-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-300 font-medium rounded-lg text-sm px-5 py-2.5 me-2 mb-2 sm:me-0 sm:mb-0 dark:bg-gray-800 dark:hover:bg-gray-700 dark:focus:ring-gray-700 dark:border-gray-700"
             // onClick={() => {console.log("clicked")}}
             // onClick={updateTextSnippets}
-            onClick={ (e) => { store.send({ "type": "processInputText" }) } }
+            onClick={ () => { store.send({ "type": "processInputText" }) } }
           >
             {/* <span>↡↧⇊⇓⇟⇣⇩</span> */}
             <span className="block md:hidden rotate-180">⇪</span>
@@ -188,13 +203,14 @@ export default function TTS2() {
                 )}
               >
                 {ps.map( (sText,si) => {
-                  let key = `p${pi}s${si}`;
+                  const key = `p${pi}s${si}`;
                   return (
                     <span
                       key={key}
-                      // ref={el => el ? sentenceRefs?.current?.set(item.id, el) : refs.current.delete(item.id)}>
-                      // ref={ el => el ? sentenceRefs?.current?.set(key, el) : sentenceRefs?.current?.delete(key) }>
-                      ref={ (el) => { el ? sentenceRefs.current.set(key, el) : sentenceRefs.current.delete(key) } }
+                      ref={(el) => {
+                        if (!el) { sentenceRefs.current.delete(key); return; }
+                        sentenceRefs.current.set(key, el);
+                      }}
                       className={classnames(
                           "inline-block hover:rounded-sm hover:bg-sky-800",
                           {
@@ -222,26 +238,6 @@ export default function TTS2() {
   );
 }
 
-import * as React from "react"
-const _SvgAutoFocus = (props: React.JSX.IntrinsicAttributes & React.SVGProps<SVGSVGElement>) => (
-    // Icon setTabler Icons
-    // LicenseMIT License
-    // AuthorTabler
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width={24}
-    height={24}
-    fill="none"
-    stroke="white"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    strokeWidth={2}
-    {...props}
-  >
-    <path stroke="none" d="M0 0h24v24H0z" />
-    <path d="M4 8V6a2 2 0 0 1 2-2h2M4 16v2a2 2 0 0 0 2 2h2M16 4h2a2 2 0 0 1 2 2v2M16 20h2a2 2 0 0 0 2-2v-2M10 15v-4a2 2 0 1 1 4 0v4M10 13h4" />
-  </svg>
-);
 const SvgAutoFocus = (props: SVGProps<SVGSVGElement>) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -253,24 +249,6 @@ const SvgAutoFocus = (props: SVGProps<SVGSVGElement>) => (
     {...props}
   >
     <path d="M19 19h-4v2h4c1.1 0 2-.9 2-2v-4h-2m0-12h-4v2h4v4h2V5c0-1.1-.9-2-2-2M5 5h4V3H5c-1.1 0-2 .9-2 2v4h2m0 6H3v4c0 1.1.9 2 2 2h4v-2H5v-4m2-4h2v2H7v-2m4 0h2v2h-2v-2m4 0h2v2h-2v-2Z" />
-  </svg>
-);
-
-const _SVGManualScroll = (props: SVGProps<SVGSVGElement>) => (
-  <svg
-    width={24}
-    height={24}
-    strokeWidth={1.5}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="white"
-    xmlns="http://www.w3.org/2000/svg"
-    {...props}
-  >
-    <path
-      d="M12 5L12.5303 4.46967C12.2374 4.17678 11.7626 4.17678 11.4697 4.46967L12 5ZM12 13L11.4697 13.5303C11.7626 13.8232 12.2374 13.8232 12.5303 13.5303L12 13ZM9.46967 6.46967C9.17678 6.76256 9.17678 7.23744 9.46967 7.53033C9.76256 7.82322 10.2374 7.82322 10.5303 7.53033L9.46967 6.46967ZM13.4697 7.53033C13.7626 7.82322 14.2374 7.82322 14.5303 7.53033C14.8232 7.23744 14.8232 6.76256 14.5303 6.46967L13.4697 7.53033ZM10.5303 10.4697C10.2374 10.1768 9.76256 10.1768 9.46967 10.4697C9.17678 10.7626 9.17678 11.2374 9.46967 11.5303L10.5303 10.4697ZM14.5303 11.5303C14.8232 11.2374 14.8232 10.7626 14.5303 10.4697C14.2374 10.1768 13.7626 10.1768 13.4697 10.4697L14.5303 11.5303ZM3.25 10V14H4.75V10H3.25ZM20.75 14V10H19.25V14H20.75ZM11.25 5V13H12.75V5H11.25ZM11.4697 4.46967L9.46967 6.46967L10.5303 7.53033L12.5303 5.53033L11.4697 4.46967ZM11.4697 5.53033L13.4697 7.53033L14.5303 6.46967L12.5303 4.46967L11.4697 5.53033ZM12.5303 12.4697L10.5303 10.4697L9.46967 11.5303L11.4697 13.5303L12.5303 12.4697ZM12.5303 13.5303L14.5303 11.5303L13.4697 10.4697L11.4697 12.4697L12.5303 13.5303ZM20.75 10C20.75 5.16751 16.8325 1.25 12 1.25V2.75C16.0041 2.75 19.25 5.99594 19.25 10H20.75ZM12 22.75C16.8325 22.75 20.75 18.8325 20.75 14H19.25C19.25 18.0041 16.0041 21.25 12 21.25V22.75ZM3.25 14C3.25 18.8325 7.16751 22.75 12 22.75V21.25C7.99594 21.25 4.75 18.0041 4.75 14H3.25ZM4.75 10C4.75 5.99594 7.99594 2.75 12 2.75V1.25C7.16751 1.25 3.25 5.16751 3.25 10H4.75Z"
-      fill="#000000"
-    />
   </svg>
 );
 

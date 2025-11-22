@@ -16,7 +16,7 @@ type TTSState = {
       rate: number, // 0.1 (lowest) and 10 (highest), with 1 being the default rate
       pitch: number, // 0 (lowest) and 2 (highest)
     },
-    serverPiper: {},
+    serverPiper: object, // TODO
   },
 };
 

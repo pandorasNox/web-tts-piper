@@ -3,9 +3,7 @@
 import store from "./store";
 import { useSelector } from "@xstate/store/react";
 
-export default function TTSClientStrategy({} : {
-  // changeClientVoice: (voiceName: string) => void,
-}) {
+export default function TTSClientStrategy() {
   const voices = useSelector(store, (state) => state.context.strategies.client.voices);
   const pickedVoice = useSelector(store, (state) => state.context.strategies.client.pickedVoice);
   const volume = useSelector(store, (state) => state.context.strategies.client.volume);

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { type Paragraphs } from '../components/TextToSpeech/state';
-import {Result, Ok, Err} from './resultType'
+import { Ok, Err } from './resultType'
 import { nextReadingPosition, previousReadingPosition } from "./readingPosition.jsx";
 
 describe("getNextIndex", () => {

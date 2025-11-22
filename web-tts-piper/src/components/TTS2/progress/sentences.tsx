@@ -1,15 +1,13 @@
 'use client';
 
-import classnames from '@/util/classnames';
 import store from './../store'
 import { useSelector } from '@xstate/store/react';
-import { Paragraphs, playerStates, Sentences, ttsStrategies } from './../../TextToSpeech/state';
+import { Paragraphs, ttsStrategies } from './../../TextToSpeech/state';
 import { useEffect, useRef, useState } from 'react';
 
 type Mode = "sentences" | "words" | "est";
 
-export default function Progress({} : {}) {
-  const playerState = useSelector(store, (state) => state.context.playerState);
+export default function Progress() {
   const paragraphs = useSelector(store, (state) => state.context.textToBeSpoken.paragraphs);
   const readingPosition = useSelector(store, (state) => state.context.textToBeSpoken.readingPosition);
 

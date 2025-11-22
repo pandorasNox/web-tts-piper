@@ -3,7 +3,7 @@
 set -Eeuo pipefail;
 
 # =============================================================================
-# 
+#
 
 func_dev() {(
     set -Eeuo pipefail;
@@ -23,6 +23,16 @@ func_cli() {(
     docker compose exec cli ash
 )}
 
+func_lint() {(
+    set -Eeuo pipefail;
+
+    printf 'server app... \n' "";
+    docker compose build;
+    docker compose up -d;
+
+    docker compose exec cli ash -ceu "cd web-tts-piper; npm run lint"
+)}
+
 # =============================================================================
 
 if test "${1}" = "cli"; then
@@ -32,5 +42,10 @@ fi
 
 if test "${1}" = "dev"; then
     func_dev;
+    exit 0;
+fi
+
+if test "${1}" = "lint"; then
+    func_lint;
     exit 0;
 fi

@@ -12,7 +12,7 @@ function initClientTts(
 
   ttsDispatch({ type: 'update_client_tts_voices', voices})
 
-  let maybeFoundPrepickVoiceIndexIfExits = voices.findIndex((v) => {
+  const maybeFoundPrepickVoiceIndexIfExits = voices.findIndex((v) => {
     return v.name === ttsStore.strategies.client.prepickVoiceIfExits
   })
 

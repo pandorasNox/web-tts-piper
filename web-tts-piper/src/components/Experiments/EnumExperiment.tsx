@@ -24,5 +24,5 @@ const makeEnum = <TKey extends string>(...entries: TKey[]): Readonly<Record<TKey
   });
   return Object.freeze(result);
 };
-const ResourceTypes = makeEnum('IRON', 'GOLD', 'COPPER', 'ALUMINUM');
-type ResourceType = keyof typeof ResourceTypes;
+export const ResourceTypes = makeEnum('IRON', 'GOLD', 'COPPER', 'ALUMINUM');
+export type ResourceType = keyof typeof ResourceTypes;

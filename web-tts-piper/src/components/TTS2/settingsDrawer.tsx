@@ -5,7 +5,7 @@ import classnames from '@/util/classnames';
 import TTSStrategyContent from './ttsStrategyContent';
 
 
-export default function SettingsDrawer({} : {}) {
+export default function SettingsDrawer() {
   const [showSettingsState, setShowSettingsState] = useState(false);
 
   useEffect(() => {
@@ -16,9 +16,9 @@ export default function SettingsDrawer({} : {}) {
       }
     };
 
-    window && window.addEventListener('keydown', escListenerFunc);
+    if (typeof window !== 'undefined') { window.addEventListener('keydown', escListenerFunc); }
 
-    return () => { window && window.removeEventListener("keydown", escListenerFunc); };
+    return () => { if (typeof window !== 'undefined') { window.removeEventListener("keydown", escListenerFunc); } };
   }, []); // run on inital comp did mount
 
   return (
@@ -49,7 +49,7 @@ export default function SettingsDrawer({} : {}) {
         </svg>Settings</h5>
         <button
           type="button" data-drawer-hide="drawer-right-example" aria-controls="drawer-right-example" className="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 absolute top-2.5 end-2.5 inline-flex items-center justify-center dark:hover:bg-gray-600 dark:hover:text-white"
-          onClick={_ => setShowSettingsState(false)}
+          onClick={() => setShowSettingsState(false)}
         >
             <svg className="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
               <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/>

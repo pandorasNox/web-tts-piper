@@ -1,6 +1,6 @@
 'use client';
 
-import { PlayerState, TextToBeSpoken, ttsStrategies, TTSStrategy } from "../TextToSpeech/state";
+import { ttsStrategies, TTSStrategy } from "../TextToSpeech/state";
 
 import store from './store'
 import { useSelector } from "@xstate/store/react";
@@ -9,7 +9,7 @@ import classnames from "@/util/classnames";
 import TTSClientStrategy from "./ttsClientStrategy";
 
 
-export default function TTSStrategyContent({} : {}) {
+export default function TTSStrategyContent() {
   const ttsStrategy: TTSStrategy = useSelector(store, (state) => state.context.ttsStrategy);
 
   let startComp = <p>No strategy selected</p>

@@ -7,7 +7,7 @@ import { playerStates } from '../TextToSpeech/state';
 
 import SettingsDrawer from './settingsDrawer';
 
-export default function Controls({} : {}) {
+export default function Controls() {
   const playerState = useSelector(store, (state) => state.context.playerState);
 
   return (
