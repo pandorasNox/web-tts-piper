@@ -1,7 +1,6 @@
-type Value = string | boolean | undefined | null;
-type Mapping = Record<string, boolean>;
 
-type Argument = Value | Mapping | Argument[] | ReadonlyArray<Argument>;
+type Argument = string | Mapping | Argument[] | ReadonlyArray<Argument>;
+type Mapping = Record<string, boolean>;
 
 const hasOwn = Object.prototype.hasOwnProperty;
 
@@ -9,36 +8,19 @@ export default function classNames(...args: Argument[]): string {
   let classes = '';
 
   for (const arg of args) {
-    if (arg) {
-      classes = appendClass(classes, parseValue(arg));
-    }
+    classes = appendClass(classes, parseValue(arg));
   }
 
   return classes;
 }
 
 function parseValue(arg: Argument): string {
-  if (arg === null) {
-    return '';
-  }
-
   if (typeof arg === 'string') {
     return arg;
   }
 
-  if (typeof arg !== 'object') {
-    return '';
-  }
-
   if (Array.isArray(arg)) {
     return classNames(...arg);
-  }
-
-  if (
-    arg.toString !== Object.prototype.toString &&
-    !arg.toString.toString().includes('[native code]')
-  ) {
-    return arg.toString();
   }
 
   let classes = '';
@@ -54,7 +36,7 @@ function parseValue(arg: Argument): string {
 }
 
 function appendClass(value: string, newClass: string): string {
-  if (!newClass) {
+  if (newClass === '') {
     return value;
   }
 
